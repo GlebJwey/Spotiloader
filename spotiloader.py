@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 from yt_dlp import YoutubeDL
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC
+import eyed3
 
 # Папка для скачивания
 DOWNLOAD_FOLDER = Path('d:/users/rigl3/Документы/Плайлист/Скачано из саунклауда 2')
@@ -90,31 +90,29 @@ def get_playlist_tracks(playlist_url):
     return tracks
 
 
-def change_audio_tags(path, *args):         # args: 0 - Название, 1 - Исполнители, 2 - Альбом, 3 - Ссылка на иконку
-    try:
-        audio_id3 = ID3(path)
-    except Exception:
-        # Если тегов нет, создаем новые
-        audio_id3 = ID3()
+def change_audio_tags(path, *args):
+
+    audiofile = eyed3.load(path)
+    if (audiofile.tag == None):
+        audiofile.initTag()
     try:
         r = requests.get(args[3])          # Картинка
         if r.status_code < 400:
-            cover_data = r.content
         # if image_path.suffix == '.png':
-        mime_type = 'image/jpeg'
+            mime_type = 'image/png'
         # else:
         #     mime_type = 'image/jpeg'
-        audio_id3["APIC"] = APIC(encoding=3,                            # Картинка
-                            mime=mime_type, type=3,
-                            desc='Front cover', data=cover_data)
+            audiofile.tag.images.set(3, r.content, mime_type)
     except FileNotFoundError: raise FileNotFoundError('а где картинка')
 
-    for i, attribute in enumerate(['TIT2', 'TPE1', 'TALB']):            # Название, Исполнитель, Альбом
-        class_att = globals().get(attribute)
-        try: audio_id3[attribute] = class_att(encoding=3, text=args[i])     
-        except: raise ValueError('да что это блять')
+    try: audiofile.tag.title = args[0]          # Название
+    except: None
+    try: audiofile.tag.artist = args[1]         # Исполнители
+    except: None
+    try: audiofile.tag.album = args[2]          # Альбом
+    except: None
 
-    audio_id3.save(path)
+    audiofile.tag.save(version=eyed3.id3.ID3_V2_3)
 
 playlist_url = input('Введите ссылку на плейлист из Spotify: ')
 tracks = get_playlist_tracks(playlist_url)
@@ -135,6 +133,7 @@ for i, track in enumerate(tracks.copy()):
             # установка тегов
             change_audio_tags(track_path, track['Name'], track['Artists'], '', track['ImageSource'])
             print("Трек успешно найден и скачан!")
+            
         except:
             print(f"Не удалось скачать трек {track['Name']} - {track['Artists']}")
         if (i + 1) % 5 or i == 1 or (i + 1) == len(tracks):
