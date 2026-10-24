@@ -84,8 +84,8 @@ def get_playlist_tracks(playlist_url):
             try: imgsource = el.find('img').get('src')
             except: imgsource = ''
 
-        # if name not in ready:
-        tracks.append({'Artists': artist, 'Name': name, 'ImageSource': imgsource})
+        if name not in ready:
+            tracks.append({'Artists': artist, 'Name': name, 'ImageSource': imgsource})
     
     return tracks
 
