@@ -1,12 +1,13 @@
 from selenium import webdriver
 from bs4 import BeautifulSoup
-import time, tqdm, os, requests
+import time, tqdm, os, requests, eyed3, warnings
 from pathlib import Path
 from selenium.webdriver.common.by import By
 from yt_dlp import YoutubeDL
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-import eyed3
+
+warnings.filterwarnings('ignore')
 
 # Папка для скачивания
 DOWNLOAD_FOLDER = Path('d:/users/rigl3/Документы/Плайлист/Скачано из саунклауда 2')
@@ -123,18 +124,22 @@ for i, track in enumerate(tracks.copy()):
         track_c = {k : v.replace(s, '&') for k, v in track.items()}
     options['outtmpl'] = OP['outtmpl'] % (track_c | {'ext' : '%(ext)s'})
     track_path = options['outtmpl'] % {'ext' : EXT}
-
     with YoutubeDL(options) as ydl:
-        try:
-            zapros = f"ytsearch1:{track_c['Name']} - {track_c['Artists']}"          # для поиска через ютуб
-            ydl.download([zapros])
-            # установка тегов
-            change_audio_tags(track_path, track['Name'], track['Artists'], '', track['ImageSource'])
-            print("Трек успешно найден и скачан!")
-            
-        except:
-            print(f"Не удалось скачать трек {track['Name']} - {track['Artists']}")
+        att = 0
+        print(f"\nСкачивание трека {track['Name']} - {track['Artists']}")
+        while not os.path.exists(track_path) and att != 5:
+            print(f'Попытка {att+1}')
+            try:
+                zapros = f"ytsearch1:{track_c['Name']} - {track_c['Artists']}"          # для поиска через ютуб
+                ydl.download([zapros])
+                # установка тегов
+                change_audio_tags(track_path, track['Name'], track['Artists'], '', track['ImageSource'])
+
+            except:
+                print('\033[31m{}\033[0m'.format(f"Не удалось скачать трек {track['Name']} - {track['Artists']}"))
+                att += 1
+        if att < 5:
+            print('\033[32mТрек успешно найден и скачан!\033[0m')
         if (i + 1) % 5 or i == 1 or (i + 1) == len(tracks):
             print(f"Прогресс {i+1}/{len(tracks)}")
-
 # КУЛЬТУРНАЯ ПРОГРАММА, ДЖАЗОВАЯ, ЯМА, ВСЕЛЕНСКИЙ ГРУЗ, *3 КИТА, ВЭЛКОМ ТУ РОССИЯНИЯ, ВСЕ БУДЕТ ХОРОШО, все что нам надо, александр, кто же будет читать для улиц, познания, пока тлеет, пословица, скандал, трупак, черная тишина
