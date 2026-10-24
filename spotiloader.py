@@ -8,12 +8,13 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from mutagen.id3 import ID3, TIT2, TPE1, TALB, APIC
 
+# Папка для скачивания
 DOWNLOAD_FOLDER = Path('d:/users/rigl3/Документы/Плайлист/Скачано из саунклауда 2')
 DOWNLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
 EXT = 'mp3'
 EXTP = '.' + EXT
-
+# Опции для сохранения
 OP = {
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
@@ -48,18 +49,17 @@ def get_playlist_tracks(playlist_url):
         # submit_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
         # submit_button.click()
 
-        time.sleep(10)  # Дождитесь загрузки ответа
+        time.sleep(5)  # Дождитесь загрузки ответа
 
     finally:
         html = driver.page_source
         driver.quit()
     # Парсинг HTML
-    # html = r.text
     with open('index.html', 'w', encoding='utf-8') as f:
         f.write(html)
         f.close()
     soup = BeautifulSoup(html, "lxml")
-
+    # какие файлы уже закончены
     tracks = []
     ready = []
     for f in DOWNLOAD_FOLDER.glob("*"):
@@ -68,11 +68,12 @@ def get_playlist_tracks(playlist_url):
             continue
         ready.append(f.stem.split(' - ')[:2])
     ready = dict(ready)
+
     # Поиск элементов по структуре сайта
     found = soup.find('div', id='playlist-songs')
 
     name, artist, imgsource = '', '', ''
-    
+    # Получение данных трека из HTML
     for track in found:
         for el in track.find_all('div', class_='spotidown-middle center'):
             try: name = el.find('a', class_='hover-underline').text
@@ -89,7 +90,7 @@ def get_playlist_tracks(playlist_url):
     return tracks
 
 
-def change_audio_tags(path, *args):
+def change_audio_tags(path, *args):         # args: 0 - Название, 1 - Исполнители, 2 - Альбом, 3 - Ссылка на иконку
     try:
         audio_id3 = ID3(path)
     except Exception:
@@ -98,12 +99,7 @@ def change_audio_tags(path, *args):
     try:
         r = requests.get(args[3])          # Картинка
         if r.status_code < 400:
-            with open('img.jpg', 'wb') as img:
-                img.write(r.content)
-                img.close()
-            with open('img.jpg', 'rb') as img:
-                cover_data = img.read()    
-
+            cover_data = r.content
         # if image_path.suffix == '.png':
         mime_type = 'image/jpeg'
         # else:
@@ -124,19 +120,19 @@ playlist_url = input('Введите ссылку на плейлист из Spo
 tracks = get_playlist_tracks(playlist_url)
 
 for i, track in enumerate(tracks.copy()):
-    print(track)
     options = OP.copy()
-    for s in INVALID_SYMBOLS:
+    for s in INVALID_SYMBOLS:           # Очистка от неверных символов
         track_c = {k : v.replace(s, '&') for k, v in track.items()}
     options['outtmpl'] = OP['outtmpl'] % (track_c | {'ext' : '%(ext)s'})
     track_path = options['outtmpl'] % {'ext' : EXT}
 
     with YoutubeDL(options) as ydl:
         try:
-            zapros = f"ytsearch1:{track_c['Name']} - {track_c['Artists']}"
+            zapros = f"ytsearch1:{track_c['Name']} - {track_c['Artists']}"          # для поиска через ютуб
             # if track['Artists'] == 'УННВ':
             #     zapros += " оригинал"
             ydl.download([zapros])
+            # установка тегов
             change_audio_tags(track_path, track['Name'], track['Artists'], '', track['ImageSource'])
             print("Трек успешно найден и скачан!")
         except:
