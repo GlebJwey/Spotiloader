@@ -127,8 +127,6 @@ for i, track in enumerate(tracks.copy()):
     with YoutubeDL(options) as ydl:
         try:
             zapros = f"ytsearch1:{track_c['Name']} - {track_c['Artists']}"          # для поиска через ютуб
-            # if track['Artists'] == 'УННВ':
-            #     zapros += " оригинал"
             ydl.download([zapros])
             # установка тегов
             change_audio_tags(track_path, track['Name'], track['Artists'], '', track['ImageSource'])
