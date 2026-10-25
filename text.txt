@@ -1,0 +1,34 @@
+import time, warnings, math
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+from pathlib import Path
+from PIL import Image
+import torchvision.transforms.functional as TF
+from torchvision.utils import make_grid
+from torch.utils.tensorboard import SummaryWriter
+from scipy.optimize import linear_sum_assignment
+from tqdm.auto import tqdm
+
+
+from patch_harmonization import *
+
+warnings.filterwarnings('ignore')
+
+def image_to_patches(img):
+    """(B,3,IMG,IMG) -> (B, NUM_PATCHES, 3, PATCH_SIZE, PATCH_SIZE), позиция = row*GRID_SIZE+col"""
+    B = img.shape[0]
+    p = img.unfold(2, PATCH_SIZE, PATCH_SIZE).unfold(3, PATCH_SIZE, PATCH_SIZE)      # (B,3,GRID_SIZE,GRID_SIZE,PATCH_SIZE,PATCH_SIZE)
+    p = p.permute(0, 2, 3, 1, 4, 5).reshape(B, NUM_PATCHES, 3, PATCH_SIZE, PATCH_SIZE)
+    return p
+
+
+def patches_to_image(patches):
+    """(B, NUM_PATCHES, 3, PATCH_SIZE, PATCH_SIZE) в ПРАВИЛЬНОМ порядке -> (B,3,IMG,IMG)"""
+    B, N, C, H, W = patches.shape
+    x = patches.view(B, GRID_SIZE, GRID_SIZE, C, H, W).permute(0, 3, 1, 4, 2, 5)
+    return x.reshape(B, C, GRID_SIZE * H, GRID_SIZE * W)
+
+
