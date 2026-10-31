@@ -1,22 +1,23 @@
 from selenium import webdriver
 from bs4 import BeautifulSoup
-import time, tqdm, os, requests, eyed3, warnings
+import time, os, requests, eyed3, warnings
 from pathlib import Path
 from selenium.webdriver.common.by import By
-from yt_dlp import YoutubeDL
+from yt_dlp import YoutubeDL, utils
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
 warnings.filterwarnings('ignore')
 
 # Папка для скачивания
-DOWNLOAD_FOLDER = Path('d:/users/rigl3/Документы/Плайлист/Скачано из саунклауда 2')
+DOWNLOAD_FOLDER = Path('C:/Users/latin/OneDrive/Desktop/Projects for AICh/spotii/saved')
 DOWNLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
 EXT  = 'mp3'
 EXTP = '.' + EXT
 # Опции для сохранения
 OP = {
+    'cookies': os.path.join(os.getcwd(), 'cookies.txt'),
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
         'preferredcodec': EXT,
@@ -24,20 +25,27 @@ OP = {
     }],
     'outtmpl': os.path.join(DOWNLOAD_FOLDER, "%(Name)s - %(Artists)s.%(ext)s"),
     'ffmpeg_location': 'C:/Users/rigl3/AppData/Local/ffmpeg-9.0.2-essentials_build/bin',
-    'quiet': True, 'no_warnings': True
+    'quiet': True, 'no_warnings': True, 'ignoreerrors': True
 }
 
 INVALID_SYMBOLS = r'\/:*?"<>|'
 
-tracks = []         # Плейлист
-ready  = []         # Уже существующие треки
-skip   = []         # Не удалось скачать
+EXCEPTS_N = []        # Сюда добавьте исключения среди плейлиста (названия)
+EXCEPTS_A = []        # Сюда добавьте исключения среди плейлиста (исполнители)
+
+HARD_EXCEPT = False          # Маркер для жесткой фильтрации исполнителей по исключениям
+
+tracks = []        # Плейлист
+ready  = []        # Уже существующие треки
+skip   = []        # Не удалось скачать
 
 def get_playlist_tracks(playlist_url):
+    """Получение данных треков из плейлиста Spotify путём веб-скрапинга и парсинга HTML-страницы"""
     # Настройка браузера
     global tracks, ready, skip
+    print('Парсинг страницы HTML...')
     options = webdriver.ChromeOptions()
-    options.add_argument("--headless")  # Run in background
+    options.add_argument("--headless")  # Запуск на фоне
     driver = webdriver.Chrome(options=options)
 
     try:
@@ -60,6 +68,8 @@ def get_playlist_tracks(playlist_url):
     with open('index.html', 'w', encoding='utf-8') as f:
         f.write(html)
         f.close()
+
+    print('Получение данных треков из HTML страницы...')
     soup = BeautifulSoup(html, "lxml")
 
     # какие файлы уже закончены
@@ -69,40 +79,52 @@ def get_playlist_tracks(playlist_url):
             continue
         ready.append(f.stem.split(' - ')[:2])
     ready = dict(ready)
-
+    
     # Поиск элементов по структуре сайта
     found = soup.find('div', id='playlist-songs')
 
     name, artist, imgsource = '', '', ''
-    # Получение данных трека из HTML
+    exist_temp = []
+    exA = None
+    # Получение данных треков из HTML
     for track in found:
         for el in track.find_all('div', class_='spotidown-middle center'):
-            try: name = el.find('a', class_='hover-underline').text
-            except: name = ''
-            try: artist = el.find('span').text
+            try: name = el.find('a', class_='hover-underline').text         # Название
+            except: name = ''           
+            try: artist = el.find('span').text          # Исполнители
             except: artist = ''
+        # Скип пустых значений
+        if name == '' and artist == '':
+            continue
+        # Получение иконки трека
         for el in track.find_all('div', class_='spotidown-left left track-preview-artwork'):
             try: imgsource = el.find('img').get('src')
             except: imgsource = ''
-
-        if name not in ready:
+        # Проверка на наличие исключений
+        if HARD_EXCEPT:
+            exist_temp = []
+            for a in EXCEPTS_A:
+                exist_temp.append(a.lower() in artist.lower())
+            exA = any(exist_temp)
+        else:
+            exA = artist.lower() in list(map(str.lower, EXCEPTS_A))
+        if name not in ready and artist not in ready and name.lower() not in list(map(str.lower, EXCEPTS_N)) and not exA:
             tracks.append({'Artists': artist, 'Name': name, 'ImageSource': imgsource})
     
     return tracks
 
 
 def change_audio_tags(path, *args):
-
+    """Устанавливает теги для трека (название, исполнители, альбом и ссылка на иконку)"""
     audiofile = eyed3.load(path)
     if (audiofile.tag == None):
         audiofile.initTag()
     try:
         r = requests.get(args[3])          # Картинка
         if r.status_code < 400:
-        # if image_path.suffix == '.png':
+
             mime_type = 'image/png'
-        # else:
-        #     mime_type = 'image/jpeg'
+
             audiofile.tag.images.set(3, r.content, mime_type)
     except FileNotFoundError: raise FileNotFoundError('а где картинка')
 
@@ -118,11 +140,12 @@ def change_audio_tags(path, *args):
 playlist_url = input('Введите ссылку на плейлист из Spotify: ')
 tracks = get_playlist_tracks(playlist_url)
 
-for i, track in enumerate(tracks.copy()):
+for i, track in enumerate(tracks):
     options = OP.copy()
+    track_c = track.copy()
 
     for s in INVALID_SYMBOLS:           # Очистка от неверных символов
-        track_c = {k : v.replace(s, '&') for k, v in track.items()}
+        track_c = {k : v.replace(s, '&') for k, v in track_c.items()}
 
     options['outtmpl'] = OP['outtmpl'] % (track_c | {'ext' : '%(ext)s'})
     track_path = options['outtmpl'] % {'ext' : EXT}
@@ -136,22 +159,36 @@ for i, track in enumerate(tracks.copy()):
             try:
                 zapros = f"ytsearch1:{track_c['Name']} - {track_c['Artists']}"          # для поиска через ютуб
                 ydl.download([zapros])
-                # установка тегов
-                change_audio_tags(track_path, track['Name'], track['Artists'], '', track['ImageSource'])
+                if not os.path.exists(track_path):
+                    raise FileExistsError
+                
             except:
                 print('\033[31m{}\033[0m'.format(f"Не удалось скачать трек {track['Name']} - {track['Artists']}"))
                 att += 1
 
         if att < 5:
+            # Установка тегов
+            change_audio_tags(track_path, track['Name'], track['Artists'], '', track['ImageSource'])
             print('\033[32mТрек успешно найден и скачан!\033[0m')
         else:
             skip.append(track)
         if (i + 1) % 5 or i == 1 or (i + 1) == len(tracks):
             print(f"Прогресс {i+1}/{len(tracks)}")
 
-    with open('exceptions.txt', 'w', encoding='utf-8') as f:
-        f.write(f'Установи {len(skip)} треков сам, олух: ')
+    # Формирование файла exceptions_sp.txt с неудачными скачиваниями и исключениями
+    with open('exceptions_sp.txt', 'w', encoding='utf-8') as f:
+        f.write(f'Установите {len(skip)} треков самостоятельно: ')
         for t in skip:
-            f.write(f"\n{t['Name']} - {t['Artists']}")
+            f.write(f"\n\t• {t['Name']} - {t['Artists']}")
+        excepts_len = len(EXCEPTS_N) + len(EXCEPTS_A)
+        if excepts_len > 0:
+            f.write(f'\n\n{excepts_len} исключений, добавленными вами: ')
+            if EXCEPTS_N:
+                f.write(f'\n\t└ {len(EXCEPTS_N)} названий треков: ')
+                for t in EXCEPTS_N:
+                    f.write(f"\n\t\t• {t}")
+            if EXCEPTS_A:
+                f.write(f'\n\t└ {len(EXCEPTS_A)} исполнителей: ')
+                for t in EXCEPTS_A:
+                    f.write(f"\n\t\t• {t}")
             
-# КУЛЬТУРНАЯ ПРОГРАММА, ДЖАЗОВАЯ, ЯМА, ВСЕЛЕНСКИЙ ГРУЗ, *3 КИТА, ВЭЛКОМ ТУ РОССИЯНИЯ, ВСЕ БУДЕТ ХОРОШО, все что нам надо, александр, кто же будет читать для улиц, познания, пока тлеет, пословица, скандал, трупак, черная тишина
