@@ -13,6 +13,7 @@ SEC_WIDTH_COEF = 0.2
 FST_HEIGHT_COEF = 0.4
 SEC_HEIGHT_COEF = 0.1
 START_WIDTH_COEF = 0.6          # От FST
+START_HEIGHT_COEF = 0.2          # От FST
 
 app = QApplication(sys.argv)
 
@@ -25,7 +26,7 @@ def clear_layout(layout, *args):
         if widget is not None:
             layout.removeWidget(widget)  # Планируем удаление
             widget.setParent(None)
-        elif type(item) == QSpacerItem:
+        elif item.spacerItem():
             layout.removeItem(item)
         else:
             # Если это вложенный макет, рекурсивно очистим его
@@ -49,7 +50,7 @@ class QtLogHandler(logging.Handler):
 
 class LogTextEdit(QTextEdit):
     COLORS = {
-        logging.DEBUG: "#888888",
+        logging.DEBUG: "#00B3FF",
         logging.INFO: "#d4d4d4",
         logging.WARNING: "#e5c07b",
         logging.ERROR: "#e06c75",
@@ -138,25 +139,24 @@ class mainw(QMainWindow):
         self.setMinimumSize(MIN_SIZE_X, MIN_SIZE_Y)
         self.setMaximumSize(MAX_SIZE_X, MAX_SIZE_Y)
 
+        self.worker, self.stop_event = None, None
+        self.i = 0
+
         #_______________ Виджеты _______________
-        url_text = QLabel("Ссылка на плейлист: ")
-        url = QLineEdit(url_text)
-        self.url_text, self.url = url_text, url
+        self.url_text = QLabel("Ссылка на плейлист: ")
+        self.url = QLineEdit()
 
-        dir_text = QLabel("Папка для скачивания: ")
-        self.dir_p = dir_text
-        dir_p = QLineEdit()
-        self.dir_p = dir_p
-        dir_browse_button = QPushButton("Browse")
+        self.dir_text = QLabel("Папка для скачивания: ")
+        self.dir_p = QLineEdit()
+        self.dir_browse_button = QPushButton("Browse")
 
-        progress_label = QLabel("Прогресс: ")
+        self.progress_label = QLabel("Прогресс: ")
 
-        start_btn = QPushButton("Start")
+        self.start_btn = QPushButton("Start")
 
-        stop_btn = QPushButton("Stop")
-        pause_btn = QPushButton("Pause")
-        continue_btn = QPushButton("Continue")
-        self.pause_btn, self.continue_btn = pause_btn, continue_btn
+        self.stop_btn = QPushButton("Stop")
+        self.pause_btn = QPushButton("Pause")
+        self.continue_btn = QPushButton("Continue")
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
@@ -195,94 +195,135 @@ class mainw(QMainWindow):
         self.logger.setLevel(logging.DEBUG)
         self.logger.addHandler(self.handler)
 
-        #_______________ Бинды _______________
-        dir_browse_button.clicked.connect(self.browse_dir)
-        start_btn.clicked.connect(self.start_worker)
-        # stop_btn.clicked.connect(self.__init__())
-        pause_btn.clicked.connect(self.pause_worker)
-        continue_btn.clicked.connect(self.continue_worker)
-
         #_______________ Сетка _______________
-        url_hor = QHBoxLayout()
-        url_hor.addWidget(url_text)
-        url_hor.addWidget(url)
-        self.url_hor = url_hor
+        self.url_hor = QHBoxLayout()
+        self.dir_hor = QHBoxLayout()
+        self.bottom_hor = QHBoxLayout()
 
-        dir_hor = QHBoxLayout()
-        dir_hor.addWidget(dir_text)
-        dir_hor.addWidget(dir_p)
-        dir_hor.addWidget(dir_browse_button)
-        self.dir_hor = dir_hor
+        self.progress_hor = QHBoxLayout()
+        self.bottom_active_hor = QHBoxLayout()
+        self.ver = QVBoxLayout()
 
-        bottom_hor = QHBoxLayout()
-        bottom_hor.addStretch()
-        bottom_hor.addWidget(start_btn)
-        self.bottom_hor = bottom_hor
-
-        progress_hor = QHBoxLayout()
-        progress_hor.addWidget(progress_label)
-        self.progress_hor = progress_hor
-
-        bottom_active_hor = QHBoxLayout()
-        bottom_active_hor.addStretch()
-        bottom_active_hor.addWidget(self.pause_btn)
-        bottom_active_hor.addWidget(stop_btn)
-        self.bottom_active_hor = bottom_active_hor
-
-        ver = QVBoxLayout()
-        ver.addLayout(self.url_hor)
-        ver.addLayout(self.dir_hor)
-        ver.addStretch()
-        ver.addLayout(bottom_hor)
-        ver.setSpacing(10)
-        self.ver = ver
+        self.main_menu()
+        self.ver.setSpacing(10)
 
         visv = QVBoxLayout(visuals)
-        visv.addWidget(visual_splitter)
 
         visual_splitter.addWidget(visuals_icon)
         visual_splitter.addWidget(visuals_stat)
+        horlzswc = int('1' + '0' * len(str(START_HEIGHT_COEF).split('.')[-1]))
+        visual_splitter.setSizes([int(horlzswc*START_HEIGHT_COEF), horlzswc])
+        visv.addWidget(visual_splitter)
 
         options.setLayout(self.ver)
         visuals.setLayout(visv)
         splitter.addWidget(options)
         splitter.addWidget(visuals)
-        lzswc = int('1' + '0' * len(str(START_WIDTH_COEF).split('.')[-1]))
-        splitter.setSizes([lzswc, int(lzswc*START_WIDTH_COEF)])
+        verlzswc = int('1' + '0' * len(str(START_WIDTH_COEF).split('.')[-1]))
+        splitter.setSizes([verlzswc, int(verlzswc*START_WIDTH_COEF)])
         self.setCentralWidget(splitter)
 
+        #_______________ Бинды _______________
+        self.dir_browse_button.clicked.connect(self.browse_dir)
+        self.start_btn.clicked.connect(self.start_worker)
+        self.stop_btn.clicked.connect(self.stop_worker)
+        self.pause_btn.clicked.connect(self.pause_worker)
+        self.continue_btn.clicked.connect(self.continue_worker)
+
+    def main_menu(self):
+        clear_layout(self.ver)
+
+        self.pause_btn.setDisabled(False)
+
+        self.url_hor.addWidget(self.url_text)
+        self.url_hor.addWidget(self.url)
+
+        self.dir_hor.addWidget(self.dir_text)
+        self.dir_hor.addWidget(self.dir_p)
+        self.dir_hor.addWidget(self.dir_browse_button)
+
+        self.bottom_hor.addStretch()
+        self.bottom_hor.addWidget(self.start_btn)
+
+        self.ver.addLayout(self.url_hor)
+        self.ver.addLayout(self.dir_hor)
+        self.ver.insertItem(2, QSpacerItem(0, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding))
+        self.ver.addLayout(self.bottom_hor)
+
+        self.url_hor.setParent(self.ver)
+        self.dir_hor.setParent(self.ver)
+        self.bottom_hor.setParent(self.ver)
+
+        
     def browse_dir(self):
         dir_browse = QFileDialog.getExistingDirectory(parent=self, caption="Выберите папку для загрузки", 
                                                       options=QFileDialog.Option.ShowDirsOnly)
         if dir_browse:
             self.dir_p.setText(dir_browse)
 
+
     def start_worker(self):
+        self.log_view.clear()
         clear_layout(self.ver)
+
+        self.progress_hor.addWidget(self.progress_label)
+
+        self.bottom_active_hor.addStretch()
+        self.bottom_active_hor.addWidget(self.pause_btn)
+        self.bottom_active_hor.addWidget(self.stop_btn)
+
         self.ver.addLayout(self.progress_hor)
-        self.ver.addWidget(self.log_view)
         self.ver.addLayout(self.bottom_active_hor)
-        threading.Thread(target=self.work, daemon=True).start()
+        self.ver.addWidget(self.log_view)
+
+        self.progress_hor.setParent(self.ver)
+        self.bottom_active_hor.setParent(self.ver)
+
+        self.stop_event = threading.Event()
+        self.worker = threading.Thread(target=self.work, daemon=True)
+        self.worker.start()
+
+    def stop_worker(self):
+        self.stop_event.set()
+        self.worker.join()
+        self.i = 0
+        self.main_menu()
 
     def pause_worker(self):
         self.bottom_active_hor.removeWidget(self.pause_btn)
         self.pause_btn.setParent(None)
         self.bottom_active_hor.insertWidget(1, self.continue_btn)
+        self.logger.debug("Paused")
+        self.stop_event.set()
+        self.worker.join()
+
 
     def continue_worker(self):
         self.bottom_active_hor.removeWidget(self.continue_btn)
         self.continue_btn.setParent(None)
         self.bottom_active_hor.insertWidget(1, self.pause_btn)
+        self.stop_event = threading.Event()
+        self.worker = threading.Thread(target=self.work, daemon=True)
+        self.logger.debug("Continued")
+        self.worker.start()
+        
 
     def work(self):
-        for i in range(100):
+        i = self.i
+        while not self.stop_event.is_set() and i != 20:
             self.logger.info(f"Step {i}")
             time.sleep(0.2)
-        self.logger.warning("Done")
+            i += 1
+            print(self.stop_event.is_set(), i==20)
+            self.i = i
+        if i == 20:
+            self.i = 0
+            self.pause_btn.setDisabled(True)
+            self.logger.info("Done")
 
 
 win = mainw()
 
 win.show()
 app.exec()
-print('закрыто')
+print('App closed')
