@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
-import sys, logging, time, threading, html
+import sys, logging, time, threading, html, random
 
 MIN_SIZE_X, MIN_SIZE_Y = 400, 200
 MAX_SIZE_X, MAX_SIZE_Y = 1200, 600
@@ -18,6 +18,7 @@ START_HEIGHT_COEF = 0.2          # От FST
 app = QApplication(sys.argv)
 
 def clear_layout(layout, *args):
+    """Очистить лайаут"""
     # Проходим по всем элементам макета в обратном порядке
     for i in reversed(range(layout.count())):
         if i in args: continue
@@ -140,7 +141,7 @@ class mainw(QMainWindow):
         self.setMaximumSize(MAX_SIZE_X, MAX_SIZE_Y)
 
         self.worker, self.stop_event = None, None
-        self.i = 0
+        self.i, self.goal = 0, 0
 
         #_______________ Виджеты _______________
         self.url_text = QLabel("Ссылка на плейлист: ")
@@ -151,6 +152,8 @@ class mainw(QMainWindow):
         self.dir_browse_button = QPushButton("Browse")
 
         self.progress_label = QLabel("Прогресс: ")
+        self.progress_bar = QProgressBar()
+        self.progress_stage = QLabel("-/-")
 
         self.start_btn = QPushButton("Start")
 
@@ -231,6 +234,7 @@ class mainw(QMainWindow):
         self.continue_btn.clicked.connect(self.continue_worker)
 
     def main_menu(self):
+        """Загрузить главное меню"""
         clear_layout(self.ver)
 
         self.pause_btn.setDisabled(False)
@@ -256,6 +260,7 @@ class mainw(QMainWindow):
 
         
     def browse_dir(self):
+        """Выбрать папку для скачивания"""
         dir_browse = QFileDialog.getExistingDirectory(parent=self, caption="Выберите папку для загрузки", 
                                                       options=QFileDialog.Option.ShowDirsOnly)
         if dir_browse:
@@ -263,10 +268,19 @@ class mainw(QMainWindow):
 
 
     def start_worker(self):
+        """Начать скачивание"""
+        self.goal = random.randint(25, 150)
+
         self.log_view.clear()
         clear_layout(self.ver)
 
+        self.progress_bar.setRange(0, self.goal)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setUpdatesEnabled(True)
+
         self.progress_hor.addWidget(self.progress_label)
+        self.progress_hor.addWidget(self.progress_bar)
+        self.progress_hor.addWidget(self.progress_stage)
 
         self.bottom_active_hor.addStretch()
         self.bottom_active_hor.addWidget(self.pause_btn)
@@ -284,12 +298,14 @@ class mainw(QMainWindow):
         self.worker.start()
 
     def stop_worker(self):
+        """Остановить скачивание и вернуться в меню"""
         self.stop_event.set()
         self.worker.join()
         self.i = 0
         self.main_menu()
 
     def pause_worker(self):
+        """Поставить скачивание на паузу"""
         self.bottom_active_hor.removeWidget(self.pause_btn)
         self.pause_btn.setParent(None)
         self.bottom_active_hor.insertWidget(1, self.continue_btn)
@@ -299,6 +315,7 @@ class mainw(QMainWindow):
 
 
     def continue_worker(self):
+        """Продолжить скачивание"""
         self.bottom_active_hor.removeWidget(self.continue_btn)
         self.continue_btn.setParent(None)
         self.bottom_active_hor.insertWidget(1, self.pause_btn)
@@ -309,14 +326,17 @@ class mainw(QMainWindow):
         
 
     def work(self):
+        """Процесс работы над скачиванием за экраном"""
         i = self.i
-        while not self.stop_event.is_set() and i != 20:
-            self.logger.info(f"Step {i}")
+        while not self.stop_event.is_set() and i != self.goal:
+            self.logger.info(f"Step {i+1}")
             time.sleep(0.2)
             i += 1
-            print(self.stop_event.is_set(), i==20)
             self.i = i
-        if i == 20:
+            self.progress_bar.setValue(i)
+            self.progress_bar.update()
+            self.progress_stage.setText(f"{i}/{self.goal}")
+        if i == self.goal:
             self.i = 0
             self.pause_btn.setDisabled(True)
             self.logger.info("Done")
