@@ -1,38 +1,70 @@
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
-import sys, logging, time, threading, html, random
+import sys, logging, time, html, random
 
 MIN_SIZE_X, MIN_SIZE_Y = 400, 200
 MAX_SIZE_X, MAX_SIZE_Y = 1200, 600
 
 FIXED_X, FIXED_Y = 1000, 500
 
-FST_WIDTH_COEF = 0.4
-SEC_WIDTH_COEF = 0.2
-FST_HEIGHT_COEF = 0.4
-SEC_HEIGHT_COEF = 0.1
-START_WIDTH_COEF = 0.6          # От FST
+FST_WIDTH_COEF    = 0.4
+SEC_WIDTH_COEF    = 0.2
+FST_HEIGHT_COEF   = 0.4
+SEC_HEIGHT_COEF   = 0.1
+START_WIDTH_COEF  = 0.6          # От FST
 START_HEIGHT_COEF = 0.2          # От FST
 
 app = QApplication(sys.argv)
 
-def clear_layout(layout, *args):
-    """Очистить лайаут"""
+def clear_layout(layout: QLayout, *args: int):
+    """Clears the layout
+    \n args - items exception index(es)"""
+    print(type(layout))
     # Проходим по всем элементам макета в обратном порядке
     for i in reversed(range(layout.count())):
         if i in args: continue
         item = layout.itemAt(i)
         widget = item.widget()  # Получаем виджет
-        if widget is not None:
-            layout.removeWidget(widget)  # Планируем удаление
+        if type(widget) == QGroupBox:
+            widget.hide()
+            layout.removeWidget(widget)
             widget.setParent(None)
-        elif item.spacerItem():
-            layout.removeItem(item)
         else:
+            if widget is not None:
+                layout.removeWidget(widget)  # Планируем удаление
+                widget.setParent(None)
+        if item.spacerItem():
+            layout.removeItem(item)
+        if item.layout() is not None:
             # Если это вложенный макет, рекурсивно очистим его
             clear_layout(item)
 
+
+class Worker(QThread):
+    """Background download cycle process"""
+    progress_changed = pyqtSignal(int) # Define signal
+
+    def __init__(self, w: QMainWindow):
+        super().__init__()
+        self.w = w
+
+    def run(self):
+        i = self.w.i
+        while not self.isInterruptionRequested() and i != self.w.goal:
+            self.w.logger.info(f"Step {i+1}")
+            time.sleep(0.2)
+            i += 1
+            self.w.i = i
+
+            self.progress_changed.emit(i)
+            self.w.progress_bar.update()
+            self.w.progress_stage.setText(f"{i}/{self.w.goal}")
+
+        if i == self.w.goal:
+            self.w.i = 0
+            self.w.pause_btn.setDisabled(True)
+            self.w.logger.info("Done")         
 
 class QtLogEmitter(QObject):
     message = pyqtSignal(str, int)
@@ -50,6 +82,7 @@ class QtLogHandler(logging.Handler):
             self.handleError(record)
 
 class LogTextEdit(QTextEdit):
+    """Built-in logging window"""
     COLORS = {
         logging.DEBUG: "#00B3FF",
         logging.INFO: "#d4d4d4",
@@ -98,8 +131,7 @@ class LogTextEdit(QTextEdit):
             bar.setValue(bar.maximum())
 
 class ImageFrame(QFrame):
-    """Фрейм, который масштабирует изображение под свой размер,
-    сохраняя соотношение сторон."""
+    """QFrame, scales an image to fit its own size, while maintaining the aspect ratio"""
 
     def __init__(self, image_path, parent=None):
         super().__init__(parent)
@@ -143,15 +175,21 @@ class mainw(QMainWindow):
         self.worker, self.stop_event = None, None
         self.i, self.goal = 0, 0
 
-        #_______________ Виджеты _______________
-        self.url_text = QLabel("Ссылка на плейлист: ")
+        #_______________ Widgets _______________
         self.url = QLineEdit()
 
-        self.dir_text = QLabel("Папка для скачивания: ")
+        self.dir_text = QLabel("Download folder: ")
         self.dir_p = QLineEdit()
         self.dir_browse_button = QPushButton("Browse")
 
-        self.progress_label = QLabel("Прогресс: ")
+        self.additional_options_menu = QGroupBox("Additional parameters")
+        self.excepts_n_w = QLineEdit()
+        self.excepts_a_w = QLineEdit()
+        self.hard_excepts = QCheckBox("Hard exclusions")
+        self.dw_format = QComboBox()
+        self.dw_format.addItems(["Name - Artist(s)", "Artist(s) - Name"])
+
+        self.progress_label = QLabel("Progress: ")
         self.progress_bar = QProgressBar()
         self.progress_stage = QLabel("-/-")
 
@@ -183,6 +221,8 @@ class mainw(QMainWindow):
         visuals_icon.setMinimumSize(visuals_min_size_x, int(visuals.height() * FST_HEIGHT_COEF))
         
         visuals_stat = QFrame()
+        visuals_stat.setFrameShape(QFrame.Shape.Panel)
+        visuals_stat.setFrameShadow(QFrame.Shadow.Sunken)
         visuals_stat.setMinimumSize(visuals_min_size_x, int(visuals.height() * SEC_HEIGHT_COEF))
 
         self.log_view = LogTextEdit()
@@ -198,9 +238,16 @@ class mainw(QMainWindow):
         self.logger.setLevel(logging.DEBUG)
         self.logger.addHandler(self.handler)
 
-        #_______________ Сетка _______________
-        self.url_hor = QHBoxLayout()
+        #_______________ Layout _______________
+        self.url_hor = QFormLayout()
         self.dir_hor = QHBoxLayout()
+        self.additional_options_form = QFormLayout()
+        self.additional_options_form.addRow(QLabel("Exclusions (write using spaces):"))       
+        self.additional_options_form.addRow("By names: ", self.excepts_n_w)
+        self.additional_options_form.addRow("By artists: ", self.excepts_a_w)
+        self.additional_options_form.addRow(self.hard_excepts)
+        self.additional_options_form.addRow("File naming format: ", self.dw_format)
+
         self.bottom_hor = QHBoxLayout()
 
         self.progress_hor = QHBoxLayout()
@@ -210,23 +257,28 @@ class mainw(QMainWindow):
         self.main_menu()
         self.ver.setSpacing(10)
 
-        visv = QVBoxLayout(visuals)
+        visv = QVBoxLayout()
 
         visual_splitter.addWidget(visuals_icon)
         visual_splitter.addWidget(visuals_stat)
+
         horlzswc = int('1' + '0' * len(str(START_HEIGHT_COEF).split('.')[-1]))
         visual_splitter.setSizes([int(horlzswc*START_HEIGHT_COEF), horlzswc])
+
         visv.addWidget(visual_splitter)
 
         options.setLayout(self.ver)
         visuals.setLayout(visv)
+
         splitter.addWidget(options)
         splitter.addWidget(visuals)
+
         verlzswc = int('1' + '0' * len(str(START_WIDTH_COEF).split('.')[-1]))
         splitter.setSizes([verlzswc, int(verlzswc*START_WIDTH_COEF)])
+
         self.setCentralWidget(splitter)
 
-        #_______________ Бинды _______________
+        #_______________ Binds _______________
         self.dir_browse_button.clicked.connect(self.browse_dir)
         self.start_btn.clicked.connect(self.start_worker)
         self.stop_btn.clicked.connect(self.stop_worker)
@@ -234,43 +286,47 @@ class mainw(QMainWindow):
         self.continue_btn.clicked.connect(self.continue_worker)
 
     def main_menu(self):
-        """Загрузить главное меню"""
+        """Inits the main menu (options frame)"""
         clear_layout(self.ver)
 
         self.pause_btn.setDisabled(False)
 
-        self.url_hor.addWidget(self.url_text)
-        self.url_hor.addWidget(self.url)
+        self.url_hor.addRow("Playlist URL: ", self.url)
 
         self.dir_hor.addWidget(self.dir_text)
         self.dir_hor.addWidget(self.dir_p)
         self.dir_hor.addWidget(self.dir_browse_button)
+
+        self.additional_options_menu.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.additional_options_menu.setLayout(self.additional_options_form)
 
         self.bottom_hor.addStretch()
         self.bottom_hor.addWidget(self.start_btn)
 
         self.ver.addLayout(self.url_hor)
         self.ver.addLayout(self.dir_hor)
-        self.ver.insertItem(2, QSpacerItem(0, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding))
+        self.ver.insertWidget(2, self.additional_options_menu)
+        self.additional_options_menu.show()
+        self.ver.insertItem(3, QSpacerItem(0, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding))
         self.ver.addLayout(self.bottom_hor)
 
-        self.url_hor.setParent(self.ver)
-        self.dir_hor.setParent(self.ver)
-        self.bottom_hor.setParent(self.ver)
+        # self.url_hor.setParent(self.ver)
+        # self.dir_hor.setParent(self.ver)
+        # self.bottom_hor.setParent(self.ver)
 
         
     def browse_dir(self):
-        """Выбрать папку для скачивания"""
-        dir_browse = QFileDialog.getExistingDirectory(parent=self, caption="Выберите папку для загрузки", 
+        """Opens a folder catalog for browsing and choosing dir"""
+        dir_browse = QFileDialog.getExistingDirectory(parent=self, caption="Select a folder for the download", 
                                                       options=QFileDialog.Option.ShowDirsOnly)
         if dir_browse:
             self.dir_p.setText(dir_browse)
 
 
     def start_worker(self):
-        """Начать скачивание"""
+        """Starts download and switches options frame to a logging window with a progress visualization"""
         self.goal = random.randint(25, 150)
-
+        
         self.log_view.clear()
         clear_layout(self.ver)
 
@@ -290,56 +346,45 @@ class mainw(QMainWindow):
         self.ver.addLayout(self.bottom_active_hor)
         self.ver.addWidget(self.log_view)
 
-        self.progress_hor.setParent(self.ver)
-        self.bottom_active_hor.setParent(self.ver)
+        # self.progress_hor.setParent(self.ver)
+        # self.bottom_active_hor.setParent(self.ver)
 
-        self.stop_event = threading.Event()
-        self.worker = threading.Thread(target=self.work, daemon=True)
+        self.worker = Worker(self)
+        self.worker.progress_changed.connect(self.progress_bar.setValue) 
         self.worker.start()
 
+    def kill_worker(self):
+        """Kills a background process"""
+        if self.worker.isRunning():
+            self.worker.requestInterruption()
+            self.worker.quit()
+            self.worker.wait()
+
     def stop_worker(self):
-        """Остановить скачивание и вернуться в меню"""
-        self.stop_event.set()
-        self.worker.join()
+        """Stops the download and returns to the menu"""
+        self.kill_worker()
         self.i = 0
         self.main_menu()
 
     def pause_worker(self):
-        """Поставить скачивание на паузу"""
+        """Pauses the download"""
         self.bottom_active_hor.removeWidget(self.pause_btn)
         self.pause_btn.setParent(None)
         self.bottom_active_hor.insertWidget(1, self.continue_btn)
+
         self.logger.debug("Paused")
-        self.stop_event.set()
-        self.worker.join()
+        self.kill_worker()
 
 
     def continue_worker(self):
-        """Продолжить скачивание"""
+        """Continues the download"""
         self.bottom_active_hor.removeWidget(self.continue_btn)
         self.continue_btn.setParent(None)
         self.bottom_active_hor.insertWidget(1, self.pause_btn)
-        self.stop_event = threading.Event()
-        self.worker = threading.Thread(target=self.work, daemon=True)
+
         self.logger.debug("Continued")
         self.worker.start()
         
-
-    def work(self):
-        """Процесс работы над скачиванием за экраном"""
-        i = self.i
-        while not self.stop_event.is_set() and i != self.goal:
-            self.logger.info(f"Step {i+1}")
-            time.sleep(0.2)
-            i += 1
-            self.i = i
-            self.progress_bar.setValue(i)
-            self.progress_bar.update()
-            self.progress_stage.setText(f"{i}/{self.goal}")
-        if i == self.goal:
-            self.i = 0
-            self.pause_btn.setDisabled(True)
-            self.logger.info("Done")
 
 
 win = mainw()

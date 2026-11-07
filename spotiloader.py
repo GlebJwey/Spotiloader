@@ -10,8 +10,12 @@ from selenium.webdriver.common.keys import Keys
 warnings.filterwarnings('ignore')
 
 # Папка для скачивания
-DOWNLOAD_FOLDER = Path('C:/Users/latin/OneDrive/Desktop/Projects for AICh/spotii/saved')
+DOWNLOAD_FOLDER = Path("<Ваша папка для скачивания>")
 DOWNLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+
+FFMPEG_LOCATION = "<Путь к FFMPEG>"
+
+TXT_FILENAME = "exceptions_sp"
 
 EXT  = 'mp3'
 EXTP = '.' + EXT
@@ -24,7 +28,7 @@ OP = {
         'preferredquality': '192',
     }],
     'outtmpl': os.path.join(DOWNLOAD_FOLDER, "%(Name)s - %(Artists)s.%(ext)s"),
-    'ffmpeg_location': 'C:/Users/rigl3/AppData/Local/ffmpeg-9.0.2-essentials_build/bin',
+    'ffmpeg_location': FFMPEG_LOCATION,
     'quiet': True, 'no_warnings': True, 'ignoreerrors': True
 }
 
@@ -176,7 +180,7 @@ for i, track in enumerate(tracks):
             print(f"Прогресс {i+1}/{len(tracks)}")
 
     # Формирование файла exceptions_sp.txt с неудачными скачиваниями и исключениями
-    with open('exceptions_sp.txt', 'w', encoding='utf-8') as f:
+    with open(f"{TXT_FILENAME}.txt", 'w', encoding='utf-8') as f:
         f.write(f'Установите {len(skip)} треков самостоятельно: ')
         for t in skip:
             f.write(f"\n\t• {t['Name']} - {t['Artists']}")
