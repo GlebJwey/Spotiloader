@@ -20,7 +20,6 @@ app = QApplication(sys.argv)
 def clear_layout(layout: QLayout, *args: int):
     """Clears the layout
     \n args - items exception index(es)"""
-    print(type(layout))
     # Проходим по всем элементам макета в обратном порядке
     for i in reversed(range(layout.count())):
         if i in args: continue
@@ -186,8 +185,13 @@ class mainw(QMainWindow):
         self.excepts_n_w = QLineEdit()
         self.excepts_a_w = QLineEdit()
         self.hard_excepts = QCheckBox("Hard exclusions")
+        self.dw_ext = QComboBox()
+        self.dw_ext.addItems(["mp3", "wav", "ogg", "opus", "flac", "alac", "m4a", "aac"])
+        self.dw_ext.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         self.dw_format = QComboBox()
         self.dw_format.addItems(["Name - Artist(s)", "Artist(s) - Name"])
+        self.dw_format.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        self.dwl = QLabel(f".{self.dw_ext.currentText()}")
 
         self.progress_label = QLabel("Progress: ")
         self.progress_bar = QProgressBar()
@@ -241,12 +245,19 @@ class mainw(QMainWindow):
         #_______________ Layout _______________
         self.url_hor = QFormLayout()
         self.dir_hor = QHBoxLayout()
+        self.fln_hhor = QHBoxLayout()
+        self.fln_hor = QHBoxLayout()
         self.additional_options_form = QFormLayout()
         self.additional_options_form.addRow(QLabel("Exclusions (write using spaces):"))       
         self.additional_options_form.addRow("By names: ", self.excepts_n_w)
         self.additional_options_form.addRow("By artists: ", self.excepts_a_w)
         self.additional_options_form.addRow(self.hard_excepts)
-        self.additional_options_form.addRow("File naming format: ", self.dw_format)
+        self.fln_hhor.addWidget(self.dw_ext)
+        self.fln_hhor.addStretch()
+        self.fln_hor.addWidget(self.dw_format)
+        self.fln_hor.addWidget(self.dwl)
+        self.additional_options_form.addRow("File extension: ", self.fln_hhor)
+        self.additional_options_form.addRow("File naming format: ", self.fln_hor)
 
         self.bottom_hor = QHBoxLayout()
 
@@ -284,6 +295,7 @@ class mainw(QMainWindow):
         self.stop_btn.clicked.connect(self.stop_worker)
         self.pause_btn.clicked.connect(self.pause_worker)
         self.continue_btn.clicked.connect(self.continue_worker)
+        self.dw_ext.currentTextChanged.connect(self.on_dw_ext_changed)
 
     def main_menu(self):
         """Inits the main menu (options frame)"""
@@ -385,7 +397,8 @@ class mainw(QMainWindow):
         self.logger.debug("Continued")
         self.worker.start()
         
-
+    def on_dw_ext_changed(self):
+        self.dwl.setText(f".{self.dw_ext.currentText()}")
 
 win = mainw()
 
