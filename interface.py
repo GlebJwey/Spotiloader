@@ -182,8 +182,8 @@ class mainw(QMainWindow):
         self.dir_browse_button = QPushButton("Browse")
 
         self.additional_options_menu = QGroupBox("Additional parameters")
-        self.excepts_n_w = QLineEdit()
-        self.excepts_a_w = QLineEdit()
+        self.excepts_n_w = QTextEdit()
+        self.excepts_a_w = QTextEdit()
         self.hard_excepts = QCheckBox("Hard exclusions")
         self.dw_ext = QComboBox()
         self.dw_ext.addItems(["mp3", "wav", "ogg", "opus", "flac", "alac", "m4a", "aac"])
@@ -192,12 +192,19 @@ class mainw(QMainWindow):
         self.dw_format.addItems(["Name - Artist(s)", "Artist(s) - Name"])
         self.dw_format.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         self.dwl = QLabel(f".{self.dw_ext.currentText()}")
+        self.do_naming = QCheckBox("Set track name")
+        self.do_artists = QCheckBox("Set track artist(s)")
+        self.do_icon_image = QCheckBox("Set track icon image")
+        self.do_naming.setChecked(True)
+        self.do_artists.setChecked(True)
+        self.do_icon_image.setChecked(True)
 
         self.progress_label = QLabel("Progress: ")
         self.progress_bar = QProgressBar()
         self.progress_stage = QLabel("-/-")
 
         self.start_btn = QPushButton("Start")
+        self.start_btn.setDisabled(True)
 
         self.stop_btn = QPushButton("Stop")
         self.pause_btn = QPushButton("Pause")
@@ -252,12 +259,16 @@ class mainw(QMainWindow):
         self.additional_options_form.addRow("By names: ", self.excepts_n_w)
         self.additional_options_form.addRow("By artists: ", self.excepts_a_w)
         self.additional_options_form.addRow(self.hard_excepts)
+        self.additional_options_form.addRow(self.create_separator())
         self.fln_hhor.addWidget(self.dw_ext)
         self.fln_hhor.addStretch()
         self.fln_hor.addWidget(self.dw_format)
         self.fln_hor.addWidget(self.dwl)
         self.additional_options_form.addRow("File extension: ", self.fln_hhor)
         self.additional_options_form.addRow("File naming format: ", self.fln_hor)
+        self.additional_options_form.addRow(self.do_naming)
+        self.additional_options_form.addRow(self.do_artists)
+        self.additional_options_form.addRow(self.do_icon_image)
 
         self.bottom_hor = QHBoxLayout()
 
@@ -295,6 +306,8 @@ class mainw(QMainWindow):
         self.stop_btn.clicked.connect(self.stop_worker)
         self.pause_btn.clicked.connect(self.pause_worker)
         self.continue_btn.clicked.connect(self.continue_worker)
+        self.url.textChanged.connect(self.on_url_dir_changed)
+        self.dir_p.textChanged.connect(self.on_url_dir_changed)
         self.dw_ext.currentTextChanged.connect(self.on_dw_ext_changed)
 
     def main_menu(self):
@@ -396,9 +409,22 @@ class mainw(QMainWindow):
 
         self.logger.debug("Continued")
         self.worker.start()
+
+    def on_url_dir_changed(self):
+        if self.url.text() == "" or self.dir_p.text() == "":
+            self.start_btn.setDisabled(True)
+        else:
+            self.start_btn.setDisabled(False)
         
     def on_dw_ext_changed(self):
         self.dwl.setText(f".{self.dw_ext.currentText()}")
+
+    def create_separator(self) -> QFrame:
+        line = QFrame()
+        # В PyQt6 используются полные имена перечислений (Enums)
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        return line
 
 win = mainw()
 
