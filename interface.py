@@ -3,17 +3,17 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys, logging, time, html, random
 
-MIN_SIZE_X, MIN_SIZE_Y = 400, 200
-MAX_SIZE_X, MAX_SIZE_Y = 1200, 600
+MIN_SIZE_X, MIN_SIZE_Y = 850, 425
+MAX_SIZE_X, MAX_SIZE_Y = 2160, 1080
 
 FIXED_X, FIXED_Y = 1000, 500
 
-FST_WIDTH_COEF    = 0.4
-SEC_WIDTH_COEF    = 0.2
-FST_HEIGHT_COEF   = 0.4
-SEC_HEIGHT_COEF   = 0.1
-START_WIDTH_COEF  = 0.6          # От FST
-START_HEIGHT_COEF = 0.2          # От FST
+FST_WIDTH_COEF    = 0.400
+SEC_WIDTH_COEF    = 0.200
+FST_HEIGHT_COEF   = 0.400
+SEC_HEIGHT_COEF   = 0.100
+START_WIDTH_COEF  = 0.675          # От FST
+START_HEIGHT_COEF = 0.650          # От FST
 
 app = QApplication(sys.argv)
 
@@ -222,12 +222,14 @@ class mainw(QMainWindow):
         visuals.setFrameShape(QFrame.Shape.StyledPanel)
         
         visuals_icon = ImageFrame('zero_image.svg.webp')
-        visuals_icon.setMinimumSize(visuals_min_size_x, int(visuals.height() * FST_HEIGHT_COEF))
+        visuals_icon_min_size_y = int(self.height() * FST_HEIGHT_COEF)
+        visuals_icon.setMinimumSize(visuals_icon_min_size_y, int(visuals.height() * FST_HEIGHT_COEF))
         
         visuals_stat = QFrame()
+        visuals_stat_min_size_y = int(self.height() * SEC_HEIGHT_COEF)
         visuals_stat.setFrameShape(QFrame.Shape.Panel)
         visuals_stat.setFrameShadow(QFrame.Shadow.Sunken)
-        visuals_stat.setMinimumSize(visuals_min_size_x, int(visuals.height() * SEC_HEIGHT_COEF))
+        visuals_stat.setMinimumSize(visuals_stat_min_size_y, int(visuals.height() * SEC_HEIGHT_COEF))
 
         self.log_view = LogTextEdit()
 
@@ -277,8 +279,9 @@ class mainw(QMainWindow):
         visual_splitter.addWidget(visuals_icon)
         visual_splitter.addWidget(visuals_stat)
 
-        horlzswc = int('1' + '0' * len(str(START_HEIGHT_COEF).split('.')[-1]))
-        visual_splitter.setSizes([int(horlzswc*START_HEIGHT_COEF), horlzswc])
+        horlzswc = self.height()
+        fst_start_height = int(horlzswc*START_HEIGHT_COEF)
+        visual_splitter.setSizes([fst_start_height, horlzswc-fst_start_height])
 
         visv.addWidget(visual_splitter)
 
@@ -288,8 +291,9 @@ class mainw(QMainWindow):
         splitter.addWidget(options)
         splitter.addWidget(visuals)
 
-        verlzswc = int('1' + '0' * len(str(START_WIDTH_COEF).split('.')[-1]))
-        splitter.setSizes([verlzswc, int(verlzswc*START_WIDTH_COEF)])
+        verlzswc = self.width()
+        fst_start_width = int(verlzswc*START_WIDTH_COEF)
+        splitter.setSizes([fst_start_width, verlzswc-fst_start_width])
 
         self.setCentralWidget(splitter)
 
