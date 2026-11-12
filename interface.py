@@ -17,24 +17,17 @@ START_HEIGHT_COEF = 0.2          # От FST
 
 app = QApplication(sys.argv)
 
-def clear_layout(layout: QLayout, *args: int):
+def clear_layout(layout: QLayout, *keep: int):
     """Clears the layout
     \n args - items exception index(es)"""
     # Проходим по всем элементам макета в обратном порядке
     for i in reversed(range(layout.count())):
-        if i in args: continue
-        item = layout.itemAt(i)
+        if i in keep: continue
+        item = layout.takeAt(i) # В отличие от itemAt(), takeAt() сам забирает элемент из лайаута, поэтому removeWidget() не обязателен
         widget = item.widget()  # Получаем виджет
-        if type(widget) == QGroupBox:
-            widget.hide()
-            layout.removeWidget(widget)
+        if item is None: continue
+        if widget is not None:
             widget.setParent(None)
-        else:
-            if widget is not None:
-                layout.removeWidget(widget)  # Планируем удаление
-                widget.setParent(None)
-        if item.spacerItem():
-            layout.removeItem(item)
         if item.layout() is not None:
             # Если это вложенный макет, рекурсивно очистим его
             clear_layout(item)
