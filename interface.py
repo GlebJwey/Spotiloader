@@ -36,6 +36,7 @@ def clear_layout(layout: QLayout, *keep: int):
 class Worker(QThread):
     """Background download cycle process"""
     progress_changed = pyqtSignal(int) # Define signal
+    done = pyqtSignal()
 
     def __init__(self, w: QMainWindow):
         super().__init__()
@@ -45,18 +46,13 @@ class Worker(QThread):
         i = self.w.i
         while not self.isInterruptionRequested() and i != self.w.goal:
             self.w.logger.info(f"Step {i+1}")
-            time.sleep(0.2)
+            self.msleep(200)
             i += 1
             self.w.i = i
-
             self.progress_changed.emit(i)
-            self.w.progress_bar.update()
-            self.w.progress_stage.setText(f"{i}/{self.w.goal}")
 
-        if i == self.w.goal:
-            self.w.i = 0
-            self.w.pause_btn.setDisabled(True)
-            self.w.logger.info("Done")         
+        if i == self.w.goal:  
+            self.done.emit()    
 
 class QtLogEmitter(QObject):
     message = pyqtSignal(str, int)
@@ -372,7 +368,8 @@ class mainw(QMainWindow):
         # self.bottom_active_hor.setParent(self.ver)
 
         self.worker = Worker(self)
-        self.worker.progress_changed.connect(self.progress_bar.setValue) 
+        self.worker.progress_changed.connect(self.on_progress) 
+        self.worker.done.connect(self.on_done)
         self.worker.start()
 
     def kill_worker(self):
@@ -415,6 +412,16 @@ class mainw(QMainWindow):
         
     def on_dw_ext_changed(self):
         self.dwl.setText(f".{self.dw_ext.currentText()}")
+
+    def on_progress(self, i):
+        self.progress_bar.setValue(i)
+        self.progress_bar.update()
+        self.progress_stage.setText(f"{i}/{self.goal}")
+
+    def on_done(self):
+        self.i = 0
+        self.pause_btn.setDisabled(True)
+        self.logger.info("Done")
 
     def create_separator(self) -> QFrame:
         line = QFrame()
