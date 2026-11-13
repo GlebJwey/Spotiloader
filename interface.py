@@ -344,7 +344,7 @@ class mainw(QMainWindow):
     def start_worker(self):
         """Starts download and switches options frame to a logging window with a progress visualization"""
         self.goal = random.randint(25, 150)
-        
+        # clearing
         self.log_view.clear()
         clear_layout(self.ver)
 
@@ -390,19 +390,17 @@ class mainw(QMainWindow):
         self.bottom_active_hor.removeWidget(self.pause_btn)
         self.pause_btn.setParent(None)
         self.bottom_active_hor.insertWidget(1, self.continue_btn)
-
         self.logger.debug("Paused")
         self.kill_worker()
-
 
     def continue_worker(self):
         """Continues the download"""
         self.bottom_active_hor.removeWidget(self.continue_btn)
         self.continue_btn.setParent(None)
         self.bottom_active_hor.insertWidget(1, self.pause_btn)
-
         self.logger.debug("Continued")
         self.worker.start()
+
 
     def on_url_dir_changed(self):
         if self.url.text() == "" or self.dir_p.text() == "":
@@ -420,10 +418,16 @@ class mainw(QMainWindow):
 
     def on_done(self):
         self.i = 0
+        self.bottom_active_hor.removeWidget(self.continue_btn)
+        self.continue_btn.setParent(None)
+        self.bottom_active_hor.insertWidget(1, self.pause_btn)
+        self.continue_btn.setDisabled(True)
         self.pause_btn.setDisabled(True)
         self.logger.info("Done")
 
+
     def create_separator(self) -> QFrame:
+        """Makes a separator, like in the QAction"""
         line = QFrame()
         # В PyQt6 используются полные имена перечислений (Enums)
         line.setFrameShape(QFrame.Shape.HLine)
