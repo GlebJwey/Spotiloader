@@ -3,8 +3,8 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys, logging, time, html, random
 
-MIN_SIZE_X, MIN_SIZE_Y = 850, 425
-MAX_SIZE_X, MAX_SIZE_Y = 2160, 1080
+MIN_SIZE_X, MIN_SIZE_Y = 800, 500
+MAX_SIZE_X, MAX_SIZE_Y = None, None
 
 FIXED_X, FIXED_Y = 1100, 550
 
@@ -16,6 +16,8 @@ START_WIDTH_COEF  = 0.675          # От FST
 START_HEIGHT_COEF = 0.650          # От FST
 
 app = QApplication(sys.argv)
+screen = app.primaryScreen()
+screen_size = screen.size()
 
 def clear_layout(layout: QLayout, *keep: int):
     """Clears the layout
@@ -156,9 +158,12 @@ class mainw(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setWindowTitle('Multisong loader')
-        self.setFixedSize(QSize(FIXED_X, FIXED_Y))
-        self.setMinimumSize(MIN_SIZE_X, MIN_SIZE_Y)
-        self.setMaximumSize(MAX_SIZE_X, MAX_SIZE_Y)
+        if FIXED_X and FIXED_Y:
+            self.resize(QSize(FIXED_X, FIXED_Y))
+        if MIN_SIZE_X and MIN_SIZE_Y:
+            self.setMinimumSize(MIN_SIZE_X, MIN_SIZE_Y)
+        if MAX_SIZE_X and MAX_SIZE_Y:
+            self.setMaximumSize(MAX_SIZE_X, MAX_SIZE_Y)
 
         self.worker, self.stop_event = None, None
         self.i, self.goal = 0, 0
@@ -181,6 +186,8 @@ class mainw(QMainWindow):
 
         self.excepts_n_w = QTextEdit()
         self.excepts_a_w = QTextEdit()
+        self.excepts_n_w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.excepts_a_w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.hard_excepts = QCheckBox("Hard exclusions")
 
         self.dw_ext = QComboBox()
@@ -255,12 +262,9 @@ class mainw(QMainWindow):
         self.dir_hor = QHBoxLayout()
         self.fln_hhor = QHBoxLayout()
         self.fln_hor = QHBoxLayout()
-        # self.keep_tracks_buttons_ver = QVBoxLayout()
-
 
         self.additional_options_form = QFormLayout()
         for index, btn in enumerate([self.keep_button, self.keep_only_button, self.not_keep_button], start=1):
-            # btn = QRadioButton(text)
             self.additional_options_form.addRow(btn)  # Add to visual layout
             self.keep_tracks_buttons_group.addButton(btn, index)  # Add to logical group with an ID 
                
@@ -346,7 +350,7 @@ class mainw(QMainWindow):
         self.ver.addLayout(self.dir_hor)
         self.ver.insertWidget(2, self.additional_options_menu)
         self.additional_options_menu.show()
-        self.ver.insertItem(3, QSpacerItem(0, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding))
+        self.ver.insertItem(3, QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding))
         self.ver.addLayout(self.bottom_hor)
 
         # self.url_hor.setParent(self.ver)
@@ -457,6 +461,18 @@ class mainw(QMainWindow):
 
 win = mainw()
 
+avail = win.screen().availableGeometry()   # working area without taskbar
+
+W = Qt.WindowType
+flags = (W.Window | W.CustomizeWindowHint | W.WindowTitleHint |
+         W.WindowSystemMenuHint | W.WindowMinimizeButtonHint |
+         W.WindowCloseButtonHint | W.WindowMaximizeButtonHint)
+if MAX_SIZE_X and MAX_SIZE_Y and not avail.width() <= MAX_SIZE_X and not avail.height() <= MAX_SIZE_Y:
+    flags = (W.Window | W.CustomizeWindowHint | W.WindowTitleHint |
+         W.WindowSystemMenuHint | W.WindowMinimizeButtonHint |
+         W.WindowCloseButtonHint)
+
+win.setWindowFlags(flags)   # before show()
 win.show()
 app.exec()
 print('App closed')
