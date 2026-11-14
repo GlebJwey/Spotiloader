@@ -6,7 +6,7 @@ import sys, logging, time, html, random
 MIN_SIZE_X, MIN_SIZE_Y = 850, 425
 MAX_SIZE_X, MAX_SIZE_Y = 2160, 1080
 
-FIXED_X, FIXED_Y = 1000, 500
+FIXED_X, FIXED_Y = 1100, 550
 
 FST_WIDTH_COEF    = 0.400
 SEC_WIDTH_COEF    = 0.200
@@ -164,16 +164,25 @@ class mainw(QMainWindow):
         self.i, self.goal = 0, 0
 
         #_______________ Widgets _______________
+        # main parameters widgets
         self.url = QLineEdit()
 
         self.dir_text = QLabel("Download folder: ")
         self.dir_p = QLineEdit()
         self.dir_browse_button = QPushButton("Browse")
-
+        # additional parameters widgets
         self.additional_options_menu = QGroupBox("Additional parameters")
+        self.keep_tracks_buttons_group = QButtonGroup()
+
+        self.keep_button = QRadioButton("Keep all")
+        self.not_keep_button = QRadioButton("Delete all")
+        self.keep_only_button = QRadioButton("Keep only with the extension")
+        self.keep_button.setChecked(True)
+
         self.excepts_n_w = QTextEdit()
         self.excepts_a_w = QTextEdit()
         self.hard_excepts = QCheckBox("Hard exclusions")
+
         self.dw_ext = QComboBox()
         self.dw_ext.addItems(["mp3", "wav", "ogg", "opus", "flac", "alac", "m4a", "aac"])
         self.dw_ext.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
@@ -181,6 +190,7 @@ class mainw(QMainWindow):
         self.dw_format.addItems(["Name - Artist(s)", "Artist(s) - Name"])
         self.dw_format.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         self.dwl = QLabel(f".{self.dw_ext.currentText()}")
+
         self.do_naming = QCheckBox("Set track name")
         self.do_artists = QCheckBox("Set track artist(s)")
         self.do_icon_image = QCheckBox("Set track icon image")
@@ -198,14 +208,14 @@ class mainw(QMainWindow):
         self.stop_btn = QPushButton("Stop")
         self.pause_btn = QPushButton("Pause")
         self.continue_btn = QPushButton("Continue")
-
+        # splitters
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)
         self.splitter = splitter
 
         visual_splitter = QSplitter(Qt.Orientation.Vertical)
         visual_splitter.setChildrenCollapsible(False)
-
+        # frames
         options = QFrame()
         options_min_size_x = int(self.width() * FST_WIDTH_COEF)
         options.setMinimumSize(options_min_size_x, MIN_SIZE_Y)
@@ -245,16 +255,27 @@ class mainw(QMainWindow):
         self.dir_hor = QHBoxLayout()
         self.fln_hhor = QHBoxLayout()
         self.fln_hor = QHBoxLayout()
+        # self.keep_tracks_buttons_ver = QVBoxLayout()
+
+
         self.additional_options_form = QFormLayout()
+        for index, btn in enumerate([self.keep_button, self.keep_only_button, self.not_keep_button], start=1):
+            # btn = QRadioButton(text)
+            self.additional_options_form.addRow(btn)  # Add to visual layout
+            self.keep_tracks_buttons_group.addButton(btn, index)  # Add to logical group with an ID 
+               
+        self.additional_options_form.addRow(self.create_separator())
         self.additional_options_form.addRow(QLabel("Exclusions (write using spaces):"))       
         self.additional_options_form.addRow("By names: ", self.excepts_n_w)
         self.additional_options_form.addRow("By artists: ", self.excepts_a_w)
         self.additional_options_form.addRow(self.hard_excepts)
         self.additional_options_form.addRow(self.create_separator())
+
         self.fln_hhor.addWidget(self.dw_ext)
         self.fln_hhor.addStretch()
         self.fln_hor.addWidget(self.dw_format)
         self.fln_hor.addWidget(self.dwl)
+
         self.additional_options_form.addRow("File extension: ", self.fln_hhor)
         self.additional_options_form.addRow("File naming format: ", self.fln_hor)
         self.additional_options_form.addRow(self.do_naming)
