@@ -158,12 +158,18 @@ class mainw(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setWindowTitle('Multisong loader')
-        if FIXED_X and FIXED_Y:
-            self.resize(QSize(FIXED_X, FIXED_Y))
-        if MIN_SIZE_X and MIN_SIZE_Y:
-            self.setMinimumSize(MIN_SIZE_X, MIN_SIZE_Y)
-        if MAX_SIZE_X and MAX_SIZE_Y:
-            self.setMaximumSize(MAX_SIZE_X, MAX_SIZE_Y)
+        if FIXED_X:
+            self.resize(QSize(FIXED_X, self.height()))
+        if FIXED_Y:
+            self.resize(QSize(self.width(), FIXED_Y))
+        if MIN_SIZE_X:
+            self.setMinimumWidth(MIN_SIZE_X)
+        if MIN_SIZE_Y:
+            self.setMinimumHeight(MIN_SIZE_Y)
+        if MAX_SIZE_X:
+            self.setMaximumWidth(MAX_SIZE_X)
+        if MAX_SIZE_Y:
+            self.setMaximumHeight(MAX_SIZE_Y)
 
         self.worker, self.stop_event = None, None
         self.i, self.goal = 0, 0
